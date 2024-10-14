@@ -1298,3 +1298,259 @@ def test_lambda_handler(mock_boto_client):
     mock_boto_client.assert_called()
 
 ```
+### Test Cases for REFACTORED Code
+**1- doc_embedding_lambda/handler.py**
+```python
+import json
+import os
+from unittest import TestCase
+from unittest.mock import patch, Mock
+import boto3
+from botocore.exceptions import ClientError
+import handler
+
+class TestDocEmbeddingLambdaHandler(TestCase):
+    
+    @patch('boto3.client')
+    def test_send_message_to_sqs(self, mock_boto_client):
+        mock_sqs = Mock()
+        mock_boto_client.return_value = mock_sqs
+        
+        message_body = {
+            'conversation_id': '12345',
+            'files': [
+                {'file_name': 'document.pdf', 'file_type': 'PDF'}
+            ]
+        }
+        
+        handler.send_message_to_sqs('dummy_queue_url', message_body)
+        
+        mock_sqs.send_message.assert_called_with(
+            QueueUrl='dummy_queue_url',
+            MessageBody=json.dumps(message_body)
+        )
+
+    @patch('boto3.client')
+    def test_lambda_handler(self, mock_boto_client):
+        mock_sqs = Mock()
+        mock_boto_client.return_value = mock_sqs
+        
+        event = {
+            'body': json.dumps({
+                'files': [
+                    {'file_name': 'document.pdf', 'file_type': 'PDF'}
+                ]
+            })
+        }
+        
+        result = handler.lambda_handler(event, None)
+        
+        self.assertEqual(result['statusCode'], 202)
+        self.assertIn('conversation_id', json.loads(result['body']))
+        mock_sqs.send_message.assert_called()
+
+```
+** 2. doc_embedding_job/job.py**
+```python
+import json
+import os
+from unittest import TestCase
+from unittest.mock import patch, Mock
+import boto3
+from botocore.exceptions import ClientError
+import job
+
+class TestDocEmbeddingJob(TestCase):
+    
+    @patch('boto3.client')
+    def test_process_message(self, mock_boto_client):
+        mock_bedrock = Mock()
+        mock_dynamodb = Mock()
+        mock_boto_client.side_effect = [mock_bedrock, mock_dynamodb]
+        
+        sqs_message = {
+            'Body': json.dumps({
+                'conversation_id': '12345',
+                'files': [
+                    {'file_name': 'document.pdf', 'file_type': 'PDF'},
+                    {'file_name': 'spreadsheet.csv', 'file_type': 'CSV'}
+                ]
+            })
+        }
+        
+        mock_bedrock.create_knowledgebase.return_value = {'KnowledgebaseId': 'abc123'}
+        mock_bedrock.get_knowledgebase_status.return_value = {'Status': 'COMPLETED'}
+        
+        job.process_message(sqs_message)
+        
+        mock_bedrock.create_knowledgebase.assert_called()
+        mock_bedrock.get_knowledgebase_status.assert_called()
+        mock_dynamodb.put_item.assert_called()
+
+    @patch('boto3.client')
+    def test_lambda_handler(self, mock_boto_client):
+        mock_bedrock = Mock()
+        mock_dynamodb = Mock()
+        mock_boto_client.side_effect = [mock_bedrock, mock_dynamodb]
+        
+        event = {
+            'Records': [
+                {'Body': json.dumps({
+                    'conversation_id': '12345',
+                    'files': [
+                        {'file_name': 'document.pdf', 'file_type': 'PDF'}
+                    ]
+                })}
+            ]
+        }
+        
+        job.lambda_handler(event, None)
+        
+        mock_bedrock.create_knowledgebase.assert_called()
+        mock_bedrock.get_knowledgebase_status.assert_called()
+        mock_dynamodb.put_item.assert_called()
+
+```
+**3. doc_chat_lambda/handler.py**
+```python
+import json
+import os
+from unittest import TestCase
+from unittest.mock import patch, Mock
+import boto3
+from botocore.exceptions import ClientError
+import handler
+
+class TestDocChatLambdaHandler(TestCase):
+    
+    @patch('boto3.client')
+    def test_check_knowledgebase_status(self, mock_boto_client):
+        mock_dynamodb = Mock()
+        mock_boto_client.return_value = mock_dynamodb
+        
+        mock_dynamodb.get_item.return_value = {
+            'Item': {
+                'status': {'S': 'READY'},
+                'knowledgebase_id': {'S': 'abc123'}
+            }
+        }
+        
+        result = handler.check_knowledgebase_status('12345')
+        
+        self.assertEqual(result, 'abc123')
+        mock_dynamodb.get_item.assert_called()
+
+    @patch('boto3.client')
+    def test_lambda_handler(self, mock_boto_client):
+        mock_dynamodb = Mock()
+        mock_bedrock = Mock()
+        mock_boto_client.side_effect = [mock_dynamodb, mock_bedrock]
+        
+        event = {
+            'body': json.dumps({
+                'conversation_id': '12345',
+                'prompt': 'What is the status?'
+            })
+        }
+        
+        mock_dynamodb.get_item.return_value = {
+            'Item': {
+                'status': {'S': 'READY'},
+                'knowledgebase_id': {'S': 'abc123'}
+            }
+        }
+        
+        mock_bedrock.query_knowledgebase.return_value = {'Response': 'The knowledge base is ready.'}
+        
+        result = handler.lambda_handler(event, None)
+        
+        self.assertEqual(result['statusCode'], 200)
+        self.assertIn('response', json.loads(result['body']))
+        mock_dynamodb.get_item.assert_called()
+        mock_bedrock.query_knowledgebase.assert_called()
+```
+**4. s3_pre_signed_url_lambda/handler.py**
+```python
+import json
+import os
+from unittest import TestCase
+from unittest.mock import patch, Mock
+import boto3
+from botocore.exceptions import ClientError
+import handler
+
+class TestS3PreSignedUrlLambdaHandler(TestCase):
+    
+    @patch('boto3.client')
+    def test_generate_presigned_url(self, mock_boto_client):
+        mock_s3 = Mock()
+        mock_boto_client.return_value = mock_s3
+        
+        mock_s3.generate_presigned_url.return_value = 'http://presigned.url'
+        
+        url = handler.generate_presigned_url('bucket_name', 'object_name')
+        
+        self.assertEqual(url, 'http://presigned.url')
+        mock_s3.generate_presigned_url.assert_called()
+
+    @patch('boto3.client')
+    def test_handle_get_request(self, mock_boto_client):
+        mock_s3 = Mock()
+        mock_boto_client.return_value = mock_s3
+        
+        params = {
+            'file_name': 'test.pdf',
+            'file_type': 'PDF',
+            'file_content_type': 'application/pdf'
+        }
+        
+        mock_s3.generate_presigned_url.return_value = 'http://presigned.url'
+        
+        result = handler.handle_get_request(params)
+        
+        self.assertEqual(result['statusCode'], 200)
+        self.assertIn('url', json.loads(result['body']))
+        mock_s3.generate_presigned_url.assert_called()
+
+    @patch('boto3.client')
+    def test_handle_post_request(self, mock_boto_client):
+        mock_s3 = Mock()
+        mock_boto_client.return_value = mock_s3
+        
+        body = {
+            'files': [
+                {'file_name': 'test1.pdf'},
+                {'file_name': 'test2.pdf'}
+            ]
+        }
+        
+        mock_s3.generate_presigned_url.return_value = 'http://presigned.url'
+        
+        result = handler.handle_post_request(body)
+        
+        self.assertEqual(result['statusCode'], 200)
+        self.assertIn('urls', json.loads(result['body']))
+        mock_s3.generate_presigned_url.assert_called()
+
+    @patch('boto3.client')
+    def test_lambda_handler(self, mock_boto_client):
+        mock_s3 = Mock()
+        mock_boto_client.return_value = mock_s3
+        
+        event = {
+            'httpMethod': 'POST',
+            'body': json.dumps({
+                'files': [
+                    {'file_name': 'test1.pdf'},
+                    {'file_name': 'test2.pdf'}
+                ]
+            })
+        }
+        
+        result = handler.lambda_handler(event, None)
+        
+        self.assertEqual(result['statusCode'], 200)
+        self.assertIn('urls', json.loads(result['body']))
+        mock_s3.generate_presigned_url.assert_called()
+
+```
