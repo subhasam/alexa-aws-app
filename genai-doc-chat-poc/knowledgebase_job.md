@@ -1,7 +1,7 @@
 # Requirement: 
 File uploaded by user through an UI Appication to S3, needs to be used to create Knowledgebase on AWS Bedrock, with which the user going to chat with as long the uswer session is active. The created knowledgebase from the user file is confined to that user and categorically,  that conversation of the user. As a AWS Expert, suggest how AWS SDK Boto3 can be used to create the knowledgebase on Bedrock from file on S3 on runtime, pasrt of a user interaction? Bedrock will be using AWS RDS PostgreSQL (with pgvector) as vector database. Generatete a Python program with required Boto3  API than can be run as a Lambda to implement this requirement. Refer the AWS Bedrock, S3 and other required AWS Services documentaion for the implementation
 
-##Step-by-Step Implementation
+## Step-by-Step Implementation
 - *Create a Knowledge Base on AWS Bedrock* : Upload the user file to S3 and create a knowledge base using the Bedrock API.
 
 - *Store Knowledge Base Metadata* : Store the metadata related to the knowledge base in AWS RDS PostgreSQL.
